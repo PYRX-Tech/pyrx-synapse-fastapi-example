@@ -1,0 +1,3 @@
+pyrx-synapse
+fastapi
+uvicorn[standard]
