@@ -1,6 +1,6 @@
 # Synapse FastAPI Example
 
-Example showing how to use [pyrx-synapse](https://pypi.org/project/pyrx-synapse/) with FastAPI (async).
+All 16 SDK endpoints with [pyrx-synapse](https://pypi.org/project/pyrx-synapse/) + FastAPI (async).
 
 ## Setup
 
@@ -11,9 +11,28 @@ Example showing how to use [pyrx-synapse](https://pypi.org/project/pyrx-synapse/
 
 ## Endpoints
 
-- `POST /api/track` — Track an event
-- `POST /api/identify` — Identify a contact
+### Core
+- `POST /api/track` — Track event
+- `POST /api/track/batch` — Batch track
+- `POST /api/identify` — Identify contact
+- `POST /api/identify/batch` — Batch identify
 - `POST /api/send` — Send email
+
+### Contacts
+- `GET /api/contacts?page=&limit=&tag=&search=` — List
+- `GET /api/contacts/{id}` — Get
+- `PUT /api/contacts/{id}` — Update
+- `DELETE /api/contacts/{id}` — Delete
+
+### Templates
+- `GET /api/templates` — List
+- `POST /api/templates` — Create
+- `GET /api/templates/{slug}` — Get
+- `PUT /api/templates/{slug}` — Update
+- `DELETE /api/templates/{slug}` — Delete
+- `POST /api/templates/{slug}/preview` — Preview
+
+Interactive docs at: http://localhost:8000/docs
 
 ## Learn more
 
