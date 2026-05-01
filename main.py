@@ -1,6 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from pyrx_synapse import AsyncSynapse
@@ -103,9 +103,10 @@ async def identify_batch(r: BatchIdentifyReq):
     return to_dict(await synapse.identify_batch(contacts=snake_keys(r.contacts)))
 
 @app.post("/api/send")
-async def send(r: SendReq):
+async def send(request: Request):
     assert synapse
-    return to_dict(await synapse.send(template_slug=r.get_slug(), to=r.to, attributes=r.attributes))
+    b = snake_keys(await request.json())
+    return to_dict(await synapse.send(template_slug=b.get("template_slug", ""), to=b.get("to", {}), attributes=b.get("attributes", {})))
 
 # Contacts
 @app.get("/api/contacts")
