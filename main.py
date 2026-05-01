@@ -39,9 +39,13 @@ class BatchIdentifyReq(BaseModel):
     contacts: list[dict]
 
 class SendReq(BaseModel):
-    templateSlug: str
-    to: dict
+    templateSlug: str = ""
+    template_slug: str = ""
+    to: dict = {}
     attributes: dict = {}
+
+    def get_slug(self) -> str:
+        return self.templateSlug or self.template_slug
 
 class ContactUpdateReq(BaseModel):
     properties: dict = {}
@@ -61,6 +65,17 @@ class TemplateUpdateReq(BaseModel):
 class PreviewReq(BaseModel):
     contact: dict = {}
 
+import re
+
+def _to_snake(name: str) -> str:
+    return re.sub(r'([a-z])([A-Z])', r'\1_\2', name).lower()
+
+def snake_keys(d: dict | list) -> dict | list:
+    """Convert camelCase keys to snake_case (accepts both formats)."""
+    if isinstance(d, list):
+        return [snake_keys(i) if isinstance(i, dict) else i for i in d]
+    return {_to_snake(k): snake_keys(v) if isinstance(v, (dict, list)) else v for k, v in d.items()}
+
 def to_dict(obj):
     if hasattr(obj, '__dict__'):
         return {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
@@ -75,7 +90,7 @@ async def track(r: TrackReq):
 @app.post("/api/track/batch")
 async def track_batch(r: BatchTrackReq):
     assert synapse
-    return to_dict(await synapse.track_batch(events=r.events))
+    return to_dict(await synapse.track_batch(events=snake_keys(r.events)))
 
 @app.post("/api/identify")
 async def identify(r: IdentifyReq):
@@ -85,12 +100,12 @@ async def identify(r: IdentifyReq):
 @app.post("/api/identify/batch")
 async def identify_batch(r: BatchIdentifyReq):
     assert synapse
-    return to_dict(await synapse.identify_batch(contacts=r.contacts))
+    return to_dict(await synapse.identify_batch(contacts=snake_keys(r.contacts)))
 
 @app.post("/api/send")
 async def send(r: SendReq):
     assert synapse
-    return to_dict(await synapse.send(template_slug=r.templateSlug, to=r.to, attributes=r.attributes))
+    return to_dict(await synapse.send(template_slug=r.get_slug(), to=r.to, attributes=r.attributes))
 
 # Contacts
 @app.get("/api/contacts")
