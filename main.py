@@ -1,6 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from pyrx_synapse import AsyncSynapse
@@ -18,90 +18,131 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Synapse FastAPI Example", lifespan=lifespan)
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    status = getattr(exc, "status_code", 500) or getattr(exc, "status", 500) or 500
+async def global_handler(request, exc):
+    status = getattr(exc, 'status_code', None) or getattr(exc, 'status', None) or 500
     return JSONResponse(status_code=status, content={"error": str(exc)})
 
 class TrackReq(BaseModel):
-    user_id: str; event: str; attributes: dict = {}
-class IdentifyReq(BaseModel):
-    user_id: str; email: str; properties: dict = {}; tags: list[str] = []
+    userId: str
+    event: str
+    attributes: dict = {}
+
 class BatchTrackReq(BaseModel):
     events: list[dict]
+
+class IdentifyReq(BaseModel):
+    userId: str
+    email: str | None = None
+    properties: dict = {}
+
 class BatchIdentifyReq(BaseModel):
     contacts: list[dict]
+
 class SendReq(BaseModel):
-    template_slug: str; user_id: str; email: str; attributes: dict = {}
+    templateSlug: str
+    to: dict
+    attributes: dict = {}
+
 class ContactUpdateReq(BaseModel):
-    email: str | None = None; properties: dict = {}; tags: list[str] = []
+    properties: dict = {}
+
 class TemplateCreateReq(BaseModel):
-    slug: str; name: str; subject: str; body_html: str; sender_name: str; from_email: str
+    slug: str
+    name: str
+    subject: str
+    body_html: str
+    sender_name: str
+    from_email: str
+
 class TemplateUpdateReq(BaseModel):
-    name: str | None = None; subject: str | None = None; body_html: str | None = None
+    subject: str | None = None
+    body_html: str | None = None
+
 class PreviewReq(BaseModel):
     contact: dict = {}
+
+def to_dict(obj):
+    if hasattr(obj, '__dict__'):
+        return {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
+    return obj
 
 # Core
 @app.post("/api/track")
 async def track(r: TrackReq):
-    return await synapse.track(external_id=r.user_id, event_name=r.event, attributes=r.attributes)
+    assert synapse
+    return to_dict(await synapse.track(external_id=r.userId, event_name=r.event, attributes=r.attributes))
 
 @app.post("/api/track/batch")
 async def track_batch(r: BatchTrackReq):
-    return await synapse.track_batch(events=r.events)
+    assert synapse
+    return to_dict(await synapse.track_batch(events=r.events))
 
 @app.post("/api/identify")
 async def identify(r: IdentifyReq):
-    return await synapse.identify(external_id=r.user_id, email=r.email, properties=r.properties, tags=r.tags)
+    assert synapse
+    return to_dict(await synapse.identify(external_id=r.userId, email=r.email, properties=r.properties))
 
 @app.post("/api/identify/batch")
 async def identify_batch(r: BatchIdentifyReq):
-    return await synapse.identify_batch(contacts=r.contacts)
+    assert synapse
+    return to_dict(await synapse.identify_batch(contacts=r.contacts))
 
 @app.post("/api/send")
 async def send(r: SendReq):
-    return await synapse.send(template_slug=r.template_slug, to={"user_id": r.user_id, "email": r.email}, attributes=r.attributes)
+    assert synapse
+    return to_dict(await synapse.send(template_slug=r.templateSlug, to=r.to, attributes=r.attributes))
 
 # Contacts
 @app.get("/api/contacts")
 async def list_contacts(page: int = 1, limit: int = 20):
-    return await synapse.contacts.list(page=page, limit=limit)
+    assert synapse
+    return await synapse.contacts.list(page=page, per_page=limit)
 
-@app.get("/api/contacts/{contact_id}")
-async def get_contact(contact_id: str):
-    return await synapse.contacts.get(contact_id)
+@app.get("/api/contacts/{cid}")
+async def get_contact(cid: str):
+    assert synapse
+    return to_dict(await synapse.contacts.get(cid))
 
-@app.put("/api/contacts/{ext_id}")
-async def update_contact(ext_id: str, r: ContactUpdateReq):
-    return await synapse.contacts.update(ext_id, data=r.model_dump(exclude_none=True))
+@app.put("/api/contacts/{eid}")
+async def update_contact(eid: str, r: ContactUpdateReq):
+    assert synapse
+    return to_dict(await synapse.contacts.update(eid, data=r.model_dump(exclude_none=True)))
 
-@app.delete("/api/contacts/{ext_id}")
-async def delete_contact(ext_id: str):
-    await synapse.contacts.delete(ext_id)
+@app.delete("/api/contacts/{eid}")
+async def delete_contact(eid: str):
+    assert synapse
+    await synapse.contacts.delete(eid)
     return {"success": True}
 
 # Templates
 @app.get("/api/templates")
 async def list_templates():
-    return await synapse.templates.list()
+    assert synapse
+    r = await synapse.templates.list()
+    return [to_dict(t) for t in r] if isinstance(r, list) else r
 
 @app.post("/api/templates")
 async def create_template(r: TemplateCreateReq):
-    return await synapse.templates.create(r.model_dump())
+    assert synapse
+    return to_dict(await synapse.templates.create(r.model_dump()))
 
 @app.get("/api/templates/{slug}")
 async def get_template(slug: str):
-    return await synapse.templates.get(slug)
+    assert synapse
+    return to_dict(await synapse.templates.get(slug))
 
 @app.put("/api/templates/{slug}")
 async def update_template(slug: str, r: TemplateUpdateReq):
-    return await synapse.templates.update(slug, params=r.model_dump(exclude_none=True))
+    assert synapse
+    return to_dict(await synapse.templates.update(slug, params=r.model_dump(exclude_none=True)))
 
 @app.delete("/api/templates/{slug}")
 async def delete_template(slug: str):
+    assert synapse
     await synapse.templates.delete(slug)
     return {"success": True}
 
 @app.post("/api/templates/{slug}/preview")
 async def preview_template(slug: str, r: PreviewReq):
-    return await synapse.templates.preview(slug, params={"contact": r.contact})
+    assert synapse
+    return to_dict(await synapse.templates.preview(slug, params={"contact": r.contact}))
